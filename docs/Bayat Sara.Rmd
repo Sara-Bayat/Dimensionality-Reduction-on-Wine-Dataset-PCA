@@ -1,0 +1,297 @@
+---
+title: 'Assignment #2'
+author: "Sara Bayat"
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document:
+    pandoc_args: ["--lua-filter=color-text.lua"]
+    extra_dependencies: "soul"
+    toc: yes
+    fig_caption: true
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    theme: readable
+    highlight: tango
+    fig_caption: true
+---
+```{cat, engine.opts = list(file = "color-text.lua"), include=FALSE}
+Span = function (el)
+  -- store the attributes for color and highlight
+  color = el.attributes['color']
+  highlight = el.attributes['highlight']
+  
+  -- create a function to check for emptiness
+  local function isempty(s)
+    return s == nil or s == ''
+  end
+  
+  if FORMAT:match 'latex' then    
+    -- use \hl to highlight stuff with {highlight = "some-color"}.
+    -- for LaTeX reasons, highlighting should come before font coloring
+    if not isempty(highlight) then
+      -- remove highlight attributes
+      el.attributes['highlight'] = nil
+      -- encapsulate in latex code
+      table.insert(
+        el.content, 1,
+        pandoc.RawInline('latex', '\\sethlcolor{'..highlight..'}\\hl{')
+      )
+      table.insert(
+        el.content,
+        pandoc.RawInline('latex', '}')
+      )
+    end
+    
+    -- use \textcolor to color text with {color = "some-color"}
+    if not isempty(color) then
+      -- remove color attributes
+      el.attributes['color'] = nil
+      -- encapsulate in latex code
+      table.insert(
+        el.content, 1,
+        pandoc.RawInline('latex', '\\textcolor{'..color..'}{')
+      )
+      table.insert(
+        el.content,
+        pandoc.RawInline('latex', '}')
+      )
+    end
+  
+    return el.content 
+  end
+  
+  if FORMAT:match 'html' then
+    style_attributes = ''
+    
+    if not isempty(highlight) then
+      -- remove highlight attributes
+      el.attributes['highlight'] = nil
+      -- use style attribute instead
+      style_attributes = 'background-color: ' .. highlight .. ';'
+    end
+    
+    if not isempty(color) then
+      -- remove color attributes
+      el.attributes['color'] = nil
+      -- use style attribute instead
+      style_attributes = style_attributes .. ' color: ' .. color .. ';'
+    end
+    
+    if not isempty(style_attributes) then
+      el.attributes['style'] = style_attributes
+    end
+    
+    -- return entire span content
+    return el
+  end
+  
+end
+```
+\newpage
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## Interducing the Data (optional)
+
+In order to showcase the proficiency of unsupervised techniques, the wine dataset, which has not any missing value, has been utilized, which comprises three diverse cultivars, each with **thirteen distinct features** that represent varying quantities of components.
+Below, you can find a detailed *statistical summary* for each variable.
+
+```{r}
+# set work directory
+setwd("E:/Carleton - Master/Fall 2023 - semester 1/Data Mining/Data Mining - Dr. Mills/Assignment #2")
+# read data file
+winedata <- read.csv("wine.data.txt",sep=",", header=F)
+names(winedata) <- c("Cvs", "Alcohol", "Malic acid","Ash", "Alcalinity of ash",
+                    "Magnesium", "Total phenols", "Flavanoids", "Nonflavanoid phenols",
+                    "Proanthocyanins", "Color intensity", "Hue", 
+                    "OD280/OD315 of diluted wines", "Proline")
+head(winedata)
+sum(colSums(is.na(winedata)))
+summary(winedata)
+```
+
+\newpage
+
+# Question 1 - part 1 - PCA (Principal Component Analysis)
+
+The data was analyzed using a method that generated 13 principal components called PC1 to PC13. Each of these components plays a crucial role in explaining a certain proportion of the variance present in the dataset. As we use normalized values for principal component analysis (PCA), we utilize the function *scale()* to standardize our data and ensure accurate analysis.
+
+```{r}
+library(stats)
+library(factoextra)
+# normalized data
+wine_s <- scale(winedata[,2:14])
+head(wine_s)
+wine.pc <- prcomp(wine_s)
+wine.pc
+summary(wine.pc)
+```
+
+\newpage
+
+# Question 1 - part 2 - Reduce to Five PCs
+
+[The first 5 PCs, explain nearly 80.2% of the total variance. This means that the first five principal components can accurately represent the data.
+While **Cumulative Proportion** of PC1 to PC5 accounts for just over 80% of the total variance present in the dataset. This implies that the first five principal components are capable of accurately representing the data. Therefore, it can be concluded that these components are highly relevant and critical in understanding the dataset.]{color="red"}
+
+```{r}
+wine.5pc <- wine.pc$x[,1:5]
+head(wine.5pc)
+```
+
+## Graph of Variables (optional)
+
+In a **graph of variables**, the positioning of each variable can give us valuable insights into their relationships. When two variables are positively correlated, they tend to move in the same direction as each other. This results in their respective positions on the graph being closer together. Conversely, when two variables are negatively correlated, they move in opposite directions and are positioned farther apart on the graph. In the dataset, we can observe that *Proline* and *Total phenols* have a direct relationship, meaning when one variable increases, so does the other. On the other hand, *Flavanoids* and *Alcalinity of ash* have an inverse relationship, indicating that as one variable increases, the other decreases.
+
+```{r, fig.height=6, fig.width=4, fig.cap="Graph of Variables"}
+fviz_pca_var(wine.pc,
+             col.var = "contrib",
+             gradient.cols = c("deeppink1", "cyan3", "#FC4E07"),
+             repel = TRUE)
+```
+
+## Biplot (optional)
+
+A biplot is a combination of a score plot and a loadings (eigenvalues) plot, which are two common plots used in principal component analysis. Although these plots are on different scales, it is possible to rescale them and overlay them on a single plot. By selecting the appropriate scaling, the biplot can accurately show the relationship between variables or observations. Additionally, it can also provide approximate relationships between variables and observations.
+
+The first principal component (PC1) explains 36.2% of the variability in the data, while the second principal component (PC2) explains 19.2%. Closer arrows indicate a stronger correlation between variables. For instance, the correlation between *Flavanoids* and *Malic acid* is weak.
+
+```{r, fig.cap="Biplot"}
+library(devtools)
+#install_github("vqv/ggbiplot")
+library(ggbiplot)
+ggbiplot(wine.pc,
+              obs.scale = 3,
+              var.scale = 3,
+              groups = winedata[,1],
+              ellipse = TRUE,
+              circle = TRUE,
+              ellipse.prob = .68) + 
+  theme(legend.position = "none")
+```
+
+\newpage
+
+# Question 1-a  - Scatterplot Matrix - PCA
+
+[The scatterplot matrix provides a visual representation of the pairwise relationship between the first 5 principal components, highlighting the distinction between the 3 cultivars through the use of different colors. Upon closer inspection, it is apparent that the projection along the first PC is particularly effective in accurately separating the three classes. So, yes we can see separation of the 3 cultivars. See figure 3.]{color="red"}
+
+```{r, fig.cap="Scatter Plot of First 5 PCs - PCA"}
+pairs(wine.pc$x[,1:5],
+      col=c("deeppink1", "cyan3", "tan2")[winedata[,1]], asp=1, pch = 21, cex=.5, lower.panel = NULL)
+```
+
+## 3D Scatterplot (optional)
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of PCs 1, 2 and 3"}
+library(scatterplot3d)
+d1 <- scatterplot3d(wine.pc$x[,c(1,2,3)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]])
+```
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of PCs 1, 2 and 4"}
+d2 <- scatterplot3d(wine.pc$x[,c(1,2,4)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]])
+```
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of PCs 1, 3 and 4"}
+d3 <- scatterplot3d(wine.pc$x[,c(1,3,4)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]])
+```
+
+
+## Scree Plot (optional)
+
+This plot shows the eigenvalues in a downward curve, from highest to lowest. 
+
+```{r, fig.cap= "Scree plot"}
+fviz_eig(wine.pc, addlabels = TRUE)
+```
+
+\newpage
+
+# Question 1b - Interpert PC1 and PC2
+
+[The **Proportion of Variance** section reveals that the first principal component (PC1) is responsible for explaining almost 36% of the total variance while the second component explains 19.21% of the total variance. The third component explains approximately 11% and so on. The **Cumulative Proportion** of PC1 to PC2 accounts for just over 55% of the total variance present in the dataset.]{color="red"}
+
+```{r}
+summary(wine.pc)
+```
+
+A higher absolute coefficient value indicates that the variable has a greater impact on the principal component. A coefficient value close to 1 or -1 indicates that the variable is closely related to the component. The sign (positive/negative) indicates the direction of the relationship between the variable and the component.
+ 
+[The first principal component has a relative value of coefficient with three variables (*Total phenols*, *Flavanoids*, and *OD280/OD315 of diluted wines*), in the negative direction. However, these values are lower than 0.5, indicating a relatively weak influence. The remaining variables have a small amount of coefficient, with most value values being less than 0.3, which implies that the PC1 component has no remarkable influence by the other variables.]{color="red"}
+
+In general:
+
+PC1 = -0.144329395 * *Alcohol* +0.245187580 * *Malic acid* +0.002051061 * *Ash* +0.239320405 * *Alcalinity of ash* -0.141992042 * *Magnesium* -0.394660845 * *Total phenols* -0.422934297 * *Flavanoids* +0.298533103 * *Nonflavanoid phenols* -0.313429488 * *Proanthocyanins* +0.088616705 * *Color intensity* -0.296714564 * *Hue* -0.376167411 * *OD280/OD315 of diluted wines* -0.286752227 * *Proline*
+
+[In relation to the PC2, it shows a moderate coefficient value when considering two variables - *Alcohol* and *Color intensity* - in the positive direction. This implies that the PC2 component is not significantly influenced by the other variables.]{color="red"}
+
+In general:
+
+PC1 = -0.483651548 * *Alcohol* -0.224930935 * *Malic acid* -0.316068814 * *Ash* +0.010590502 * *Alcalinity of ash* -0.299634003 * *Magnesium* -0.065039512 * *Total phenols* +0.003359812 * *Flavanoids* -0.028779488 * *Nonflavanoid phenols* -0.039301722 * *Proanthocyanins* -0.529995672 * *Color intensity* +0.279235148 * *Hue* +0.164496193 * *OD280/OD315 of diluted wines* -0.364902832 * *Proline*
+
+```{r}
+wine.pc$rotation[,1:2]
+```
+
+\newpage
+
+# Question 2a - FastICA for 5 Independent Component (Independent Component Analysis)
+
+FastICA is an algorithm that extracts information from complex data by performing independent component analysis. It identifies the independent components and represents the data accurately by finding an orthogonal rotation that maximizes non-Gaussianity.
+
+Now we do fastICA for 5 independent component (n.comp = 5).
+
+```{r}
+library(fastICA)
+set.seed(777)
+wine.ic <- fastICA(wine_s, n.comp = 5, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+method = "R", row.norm = FALSE, maxit=200, tol=0.0001, verbose=TRUE)
+head(wine.ic$X)
+wine.ic$K
+wine.ic$W
+wine.ic$A
+head(wine.ic$S)
+```
+
+\newpage
+
+# Question 2b - Scatterplot Matrix - ICA
+
+[The scatterplot matrix provides a visual representation of the pairwise relationship between the first 5 independent variables, highlighting the distinction between the 3 cultivars through the use of different colors. Upon closer inspection, it is apparent that the projection along the *var 5* is particularly effective in accurately separating the three classes. So, yes we can see separation of the 3 cultivars. See figure 8.]{color="red"}
+
+```{r, fig.cap="Scatter Plot of 5 PCs - ICA"}
+pairs(wine.ic$S, col=c("deeppink1", "cyan3", "tan2")[winedata[,1]], lower.panel = NULL)
+```
+
+## 3D Scatterplot (optional)
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of Variables 1, 3 and 5"}
+library(scatterplot3d)
+dd1 <- scatterplot3d(wine.ic$S[,c(5,3,1)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]],
+              xlab = "var 5", ylab = "var 3", zlab = "var 1")
+```
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of Variables 2, 3 and 5"}
+dd2 <- scatterplot3d(wine.ic$S[,c(5,2,3)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]],
+              xlab = "var 5", ylab = "var 2", zlab = "var 3")
+```
+
+```{r, fig.height=3.5, fig.width=3.5, fig.cap="3D Scatter Plot of Variables 3, 4 and 5"}
+dd3 <- scatterplot3d(wine.ic$S[,c(5,4,3)],
+              color=c("deeppink1", "cyan3", "tan2")[winedata[,1]],
+              xlab = "var 5", ylab = "var 4", zlab = "var 3")
+```
